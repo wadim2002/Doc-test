@@ -1,0 +1,64 @@
+version: '3'
+services:
+
+  master:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_master"
+    image: "citusdata/citus:12.1.1"
+    ports: ["${COORDINATOR_EXTERNAL_PORT:-5432}:5432"]
+    labels: ["com.citusdata.role=Master"]
+    environment: &AUTH
+      POSTGRES_USER: "postrges"
+      POSTGRES_PASSWORD: "123456"
+      PGUSER: postrges
+      PGPASSWORD: "123456"
+      POSTGRES_HOST_AUTH_METHOD: "${POSTGRES_HOST_AUTH_METHOD:-trust}"
+      POSTGRES_DB: "postrges"
+
+  worker:
+    image: "citusdata/citus:12.1.1"
+    labels: ["com.citusdata.role=Worker"]
+    depends_on: [manager]
+    environment: *AUTH
+    command: "/wait-for-manager.sh"
+    volumes:
+      - healthcheck-volume:/healthcheck
+  manager:
+    container_name: "${COMPOSE_PROJECT_NAME:-citus}_manager"
+    image: "citusdata/membership-manager:0.3.0"
+    volumes:
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+      - healthcheck-volume:/healthcheck
+    depends_on: [master]
+    environment: *AUTH
+
+  dbslave:
+    image: postgres
+    volumes:
+      - $PWD/pgslave/:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: "pass"
+      POSTGRES_USER: "postrges"
+      POSTGRES_DB: "postrges"
+    ports:
+      - "15432:5432"
+  redis:
+    image: 'redis:alpine'
+      
+  web:
+    build: .
+    command: >
+      sh -c "pip install --upgrade pip &&
+        pip install redis &&
+        python manage.py runserver 0.0.0.0:8000"
+
+    volumes:
+      - .:/usr/src/dm_rest
+    ports:
+      - 8000:8000
+    depends_on:
+      - master
+      - dbslave
+
+volumes:
+  postrgers_data:
+  healthcheck-volume:
