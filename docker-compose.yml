@@ -41,8 +41,6 @@ services:
       POSTGRES_DB: "postrges"
     ports:
       - "15432:5432"
-  redis:
-    image: 'redis:alpine'
       
   web:
     build: .
@@ -50,7 +48,7 @@ services:
       sh -c "pip install --upgrade pip &&
         pip install redis &&
         python manage.py runserver 0.0.0.0:8000"
-
+    
     volumes:
       - .:/usr/src/dm_rest
     ports:
