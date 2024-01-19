@@ -41,14 +41,19 @@ services:
       POSTGRES_DB: "postrges"
     ports:
       - "15432:5432"
+  redis:
+    image: 'redis:alpine'
       
   web:
     build: .
     command: >
       sh -c "pip install --upgrade pip &&
         pip install redis &&
+        pip install pika &&
         python manage.py runserver 0.0.0.0:8000"
-    
+    env_file: .env
+    environment:
+      - RABBITMQ_HOST=rabbitmq
     volumes:
       - .:/usr/src/dm_rest
     ports:
@@ -56,6 +61,11 @@ services:
     depends_on:
       - master
       - dbslave
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - 5672:5672
+
 
 volumes:
   postrgers_data:
