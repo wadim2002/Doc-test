@@ -25,4 +25,9 @@ urlpatterns = [
     #Отправка сообщения пользователю (метод /dialog/{user_id}/send из спецификации)
     path("dialog/<int:user>/send/<str:text>", views.dialog_send),
     #Получение диалога между двумя пользователями (метод /dialog/{user_id}/list из спецификации)
+    #отправка сообщений в канал /post/feed/posted
+    path("post/feed/posted", views.post_send),
+
+    #чтение сообщения из канала
+    path("post/feed/read", views.post_read),
 ]
