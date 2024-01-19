@@ -1,11 +1,13 @@
 from django.http import HttpResponse
 import psycopg2
 import redis
+import pika
+import traceback, sys
 
 def wellcome(request):
     return HttpResponse("<h1>Wellcome my Python app!</h1>")
 def index(request):
-    conn = psycopg2.connect(dbname="postrges", user="postrges", password="123456", host="db", port="5432")
+    conn = psycopg2.connect(dbname="postrges", user="postrges", password="123456", host="master", port="5432")
     with conn:
         with conn.cursor() as cursor:
             print("Подключение установлено")
@@ -21,7 +23,7 @@ def index(request):
     return HttpResponse("<h1>БД подключена</h1>")
 
 def login(request,name,password):
-    conn = psycopg2.connect(dbname="postrges", user="postrges", password="123456", host="db", port="5432")
+    conn = psycopg2.connect(dbname="postrges", user="postrges", password="123456", host="master", port="5432")
 
     cursor = conn.cursor()
 
@@ -62,7 +64,7 @@ def getuser(request,id):
     return HttpResponse(result)   
  
 def register(request,name,surname,old,sex,hobby,sity,password):
-        conn = psycopg2.connect(dbname="postgres", user="postgres", password="123456", host="db", port="5432")
+        conn = psycopg2.connect(dbname="postgres", user="postgres", password="123456", host="master", port="5432")
 
         cursor = conn.cursor()
 
@@ -175,7 +177,7 @@ def post_create(request,user,text):
     return HttpResponse(result)
 # Функция по отправке сообщения
 def dialog_send(request,user,text):
-        # подключение к БД
+    # подключение к БД
     conn = psycopg2.connect(dbname="postrges", user="postrges", password="pass", host="master", port="5432")
     # создание курсора
     cursor = conn.cursor()
@@ -191,3 +193,50 @@ def dialog_send(request,user,text):
     conn.close()
 
     return HttpResponse(result)
+
+def post_send(request):
+    # подключение к БД
+    conn = psycopg2.connect(dbname="postgres", user="postgres", password="pass", host="dbslave", port="5432")
+    # создание курсора
+    cursor = conn.cursor()
+    # строка запроса
+    query = "SELECT text FROM posts where ID=1"
+    cursor.execute(query)
+    
+    rows = cursor.fetchall()
+
+    mess = str(rows[0][0])
+
+    # Устанавливаем соединение с сервером RabbitMQ
+    connection = pika.BlockingConnection(pika.ConnectionParameters('rabbitmq',5672))#("amqp://guest:guest@rabbitmq:5672/vhost"))
+    channel = connection.channel()
+    
+    # Объявляем очередь, в которую будем отправлять сообщения
+    channel.queue_declare(queue='hello')
+    
+    # Отправляем сообщение в очередь
+    channel.basic_publish(exchange='', routing_key='hello', body=mess)    
+    connection.close()
+
+    cursor.close()
+    conn.close()
+
+    return HttpResponse(mess)
+
+def post_read(request):
+    # Устанавливаем соединение с сервером RabbitMQ
+    connection = pika.BlockingConnection(pika.ConnectionParameters('rabbitmq',5672))
+    channel = connection.channel()
+ 
+    # Объявляем очередь, из которой будем получать сообщения
+    channel.queue_declare(queue='hello')
+ 
+    # Функция обработки полученного сообщения
+    def callback(channel, method, properties, body):
+        print(f"Received: '{body}'")
+ 
+    # Подписываемся на очередь и указываем функцию обработки сообщений
+    channel.basic_consume('hello', callback)
+    channel.start_consuming()
+    channel.close()
+    connection.close()
